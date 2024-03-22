@@ -114,6 +114,41 @@ export class RestAPIStack extends cdk.Stack {
         },
       }
     );
+    // Grant the getMovieCrew function read access to the MovieCrew table
+    const getMovieCrewFn = new lambdanode.NodejsFunction(this, "GetMovieCrewFn", {
+      runtime: lambda.Runtime.NODEJS_16_X,
+      entry: `${__dirname}/../lambdas/getMovieCrew.ts`,
+      environment: {
+        MOVIE_CREW_TABLE_NAME: movieCrewTable.tableName,
+        REGION: "eu-west-1",
+      },
+    });
+
+    // Define the getMovieAwards Lambda function
+    const getMovieAwardsFn = new lambdanode.NodejsFunction(this, "GetMovieAwardsFn", {
+      runtime: lambda.Runtime.NODEJS_16_X,
+      entry: `${__dirname}/../lambdas/getMovieAwards.ts`,
+      environment: {
+        MOVIE_AWARDS_TABLE_NAME: movieAwardsTable.tableName,
+        REGION: "eu-west-1",
+      },
+    });
+
+
+
+// Define the getCrewByRoleAndMovie Lambda function
+const getCrewByRoleAndMovieFn = new lambdanode.NodejsFunction(this, 'GetCrewByRoleAndMovieFn', {
+  architecture: lambda.Architecture.ARM_64,
+  runtime: lambda.Runtime.NODEJS_16_X,
+  entry: `${__dirname}/../lambdas/getCrewByRoleAndMovie.ts`, // path to the Lambda function file
+  environment: {
+    MOVIE_CREW_TABLE_NAME: movieCrewTable.tableName,
+    REGION: "eu-west-1",
+  },
+  // ... other properties as needed ...
+}); 
+
+
 
     new custom.AwsCustomResource(this, "moviesddbInitData", {
       onCreate: {
@@ -125,6 +160,9 @@ export class RestAPIStack extends cdk.Stack {
             [movieCastsTable.tableName]: generateBatch(movieCasts),
             [movieAwardsTable.tableName]: generateBatch(movieAwards),
             [movieCrewTable.tableName]: generateBatch(movieCrew),
+          
+           
+            
 
 
           },
@@ -173,12 +211,31 @@ export class RestAPIStack extends cdk.Stack {
       new apig.LambdaIntegration(deleteMovieByIdFn, { proxy: true })
     );
     
+    // API Gateway resource for the getMovieCrew endpoint
+    const movieCrewEndpoint = api.root.addResource("movieCrew");
+    movieCrewEndpoint.addMethod("GET", new apig.LambdaIntegration(getMovieCrewFn));
+
+    // API Gateway resource for the getMovieAwards endpoint
+    const movieAwardsEndpoint = api.root.addResource("movieAwards");
+    movieAwardsEndpoint.addMethod("GET", new apig.LambdaIntegration(getMovieAwardsFn));
+
+
+    const crewEndpoint = api.root.addResource('crew');
+    const roleEndpoint = crewEndpoint.addResource('{role}');
+    const crewRoleMovieIdEndpoint = roleEndpoint.addResource('{movieId}');
+    crewRoleMovieIdEndpoint.addMethod('GET', new apig.LambdaIntegration(getCrewByRoleAndMovieFn));
+
+    
     // Permissions;
     moviesTable.grantReadData(getMovieByIdFn);
     moviesTable.grantReadData(getAllMoviesFn);
-     moviesTable.grantReadWriteData(deleteMovieByIdFn)
+    moviesTable.grantReadWriteData(deleteMovieByIdFn)
     movieCastsTable.grantReadData(getMovieCastMembersFn);
     movieCastsTable.grantReadData(getMovieByIdFn)
+    movieAwardsTable.grantReadData(getMovieAwardsFn);
+    movieCrewTable.grantReadData(getMovieCrewFn);
+    movieCrewTable.grantReadData(getCrewByRoleAndMovieFn);
+    
 
   }
 }
